@@ -20,9 +20,6 @@ A robust, secure, and presentation-ready real-time chat application.
 3.  **Browse**: Open `http://localhost:8080`.
 
 ## 🔑 Credentials
-- **Admin**:
-    - Username: `admin`
-    - Password: `admin123` (Created automatically on first run)
 - **Student**:
     - Register a new account on the login page.
 
