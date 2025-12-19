@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="dashboard-header">
+            <h3>Student Dashboard</h3>
+            <div>
+                <span id="user-display" style="margin-right: 15px; opacity: 0.8;"></span>
+                <button onclick="logout()" class="secondary" style="width: auto; padding: 8px 15px;">Logout</button>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <h4 style="margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                    Rooms</h4>
+                <div id="rooms-list"></div>
+
+                <div id="online-users-section" style="display:none; margin-top: 20px;">
+                    <h4
+                        style="margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; color: var(--success-color);">
+                        Online Users</h4>
+                    <div id="online-users-list" style="font-size: 0.9em;"></div>
+                </div>
+
+                <h4
+                    style="margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                    My Status</h4>
+                <div id="connection-status" class="status-indicator status-disconnected">Disconnected</div>
+                <div id="requests-list"></div>
+            </div>
+
+            <!-- Main Chat Area -->
+            <div class="main-content">
+                <div id="welcome-screen"
+                    style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%;">
+                    <h2>Select a Room</h2>
+                    <p style="opacity: 0.6;">Choose a room from the sidebar to start chatting.</p>
+                </div>
+
+                <div id="chat-screen" style="display: none; flex-direction: column; height: 100%;">
+                    <div
+                        style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 id="chat-room-name" style="margin: 0;">Room Name</h3>
+                        <button onclick="leaveRoom()" class="secondary"
+                            style="width: auto; font-size: 0.8rem; padding: 5px 10px;">Leave</button>
+                    </div>
+
+                    <div id="chat-messages" class="chat-messages">
+                        <!-- Messages go here -->
+                    </div>
+
+                    <div id="typing-indicator" class="typing-indicator"></div>
+
+                    <div class="message-input-area">
+                        <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="handleKey(event)"
+                            oninput="handleTyping()">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentRoom = null;
+        let stompClient = null;
+        let typingTimeout = null;
+
+        // --- Init ---
+        window.onload = async () => {
+            await checkAuth();
+            loadDashboard();
+
+            // Auto rejoin
+            const savedRoom = localStorage.getItem('currentRoom');
+            if (savedRoom) {
+                // We need to verify if we still have access or just try to join
+                // For simplicity, we'll try to join if we see it in the list later or just wait for dashboard load
+                setTimeout(() => {
+                    if (document.querySelector(`button[onclick="enterRoom('${savedRoom}')"]`)) {
+                        enterRoom(savedRoom);
+                    }
+                }, 1000);
+            }
+        };
+
+        async function checkAuth() {
+            let res = await fetch('/api/auth/check');
+            if (!res.ok) window.location.href = 'index.html';
+            currentUser = await res.json();
+            document.getElementById('user-display').innerText = currentUser.username;
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            localStorage.removeItem('currentRoom');
+            window.location.href = 'index.html';
+        }
+
+        async function loadDashboard() {
+            let res = await fetch('/api/user/dashboard-data');
+            let data = await res.json();
+            renderRooms(data.rooms, data.myRequests);
+            renderRequests(data.myRequests);
+        }
+
+        function renderRooms(rooms, myRequests) {
+            const container = document.getElementById('rooms-list');
+            container.innerHTML = '';
+
+            rooms.forEach(room => {
+                let req = myRequests.find(r => r.roomName === room.name);
+                let actionBtn = `<button onclick="requestJoin('${room.id}')" class="secondary">Request</button>`;
+
+                if (req) {
+                    if (req.status === 'APPROVED') {
+                        actionBtn = `<button onclick="enterRoom('${room.name}')" style="background: linear-gradient(to right, #00b09b, #96c93d);">Join</button>`;
+                    } else if (req.status === 'PENDING') {
+                        actionBtn = `<button disabled class="secondary" style="opacity: 0.5;">Pending</button>`;
+                    } else {
+                        actionBtn = `<button disabled class="danger" style="opacity: 0.5;">Rejected</button>`;
+                    }
+                }
+
+                container.innerHTML += `
+                    <div class="room-item">
+                        <div class="room-details">
+                            <span style="font-weight: bold;">${room.name}</span>
+                        </div>
+                        <div class="room-actions" style="margin-left: 10px;">
+                            ${actionBtn}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderRequests(requests) {
+            const container = document.getElementById('requests-list');
+            container.innerHTML = '';
+            if (requests.length === 0) {
+                container.innerHTML = '<span style="font-size: 0.8rem; opacity: 0.5;">No active requests</span>';
+                return;
+            }
+            requests.forEach(r => {
+                let color = r.status === 'APPROVED' ? '#00b09b' : (r.status === 'PENDING' ? 'orange' : 'red');
+                container.innerHTML += `<div style="font-size: 0.9rem; padding: 5px 0;">${r.roomName}: <span style="color:${color}">${r.status}</span></div>`;
+            });
+        }
+
+        async function requestJoin(roomId) {
+            let res = await fetch(`/api/user/request-join?roomId=${roomId}`, { method: 'POST' });
+            if (res.ok) loadDashboard();
+            else alert("Request failed");
+        }
+
+        // --- Chat Logic ---
+
+        function enterRoom(roomName) {
+            currentRoom = roomName;
+            localStorage.setItem('currentRoom', roomName);
+
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('chat-screen').style.display = 'flex';
+            document.getElementById('chat-room-name').innerText = roomName;
+
+            document.getElementById('chat-messages').innerHTML = ''; // Clear
+            document.getElementById('typing-indicator').innerText = '';
+
+            loadHistory(roomName);
+            loadOnlineUsers(roomName);
+            document.getElementById('online-users-section').style.display = 'block';
+            connectWebSocket(roomName);
+        }
+
+        function leaveRoom() {
+            if (stompClient) {
+                // Send LEAVE message
+                stompClient.send(`/app/chat/${currentRoom}/sendMessage`, {}, JSON.stringify({
+                    sender: currentUser.username,
+                    type: 'LEAVE'
+                }));
+                stompClient.disconnect();
+            }
+            currentRoom = null;
+            localStorage.removeItem('currentRoom');
+            document.getElementById('chat-screen').style.display = 'none';
+            document.getElementById('welcome-screen').style.display = 'flex';
+            document.getElementById('online-users-section').style.display = 'none';
+        }
+
+        async function loadOnlineUsers(roomName) {
+            let res = await fetch(`/api/chat/${roomName}/users`);
+            if (res.ok) {
+                let users = await res.json();
+                renderOnlineUsers(users);
+            }
+        }
+
+        function renderOnlineUsers(users) {
+            const list = document.getElementById('online-users-list');
+            list.innerHTML = '';
+            users.forEach(u => {
+                list.innerHTML += `<div style="padding: 2px 0;">🟢 ${u}</div>`;
+            });
+        }
+
+        async function loadHistory(roomName) {
+            let res = await fetch(`/api/history/${roomName}`);
+            let msgs = await res.json();
+            msgs.forEach(displayMessage);
+        }
+
+        function connectWebSocket(roomName) {
+            let socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null;
+
+            stompClient.connect({}, function () {
+                // Subscribe/Chat
+                stompClient.subscribe(`/topic/room/${roomName}`, function (payload) {
+                    let msg = JSON.parse(payload.body);
+
+                    if (msg.type === 'TYPING') showTyping(msg.sender);
+                    else if (msg.type === 'JOIN' || msg.type === 'LEAVE') {
+                        displayMessage(msg);
+                        loadOnlineUsers(roomName); // Refresh list
+                    }
+                    else {
+                        displayMessage(msg);
+                    }
+                });
+
+                // Join Message
+                stompClient.send(`/app/chat/${roomName}/addUser`, {}, JSON.stringify({
+                    sender: currentUser.username,
+                    type: 'JOIN'
+                }));
+            });
+        }
+
+        function sendMessage() {
+            let input = document.getElementById('msg-input');
+            let content = input.value.trim();
+            if (!content) return;
+
+            stompClient.send(`/app/chat/${currentRoom}/sendMessage`, {}, JSON.stringify({
+                sender: currentUser.username,
+                content: content,
+                type: 'CHAT'
+            }));
+            input.value = '';
+        }
+
+        function handleKey(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function displayMessage(msg) {
+            let container = document.getElementById('chat-messages');
+
+            if (msg.type === 'JOIN') {
+                container.innerHTML += `<div class="message join">${msg.sender} joined</div>`;
+            } else if (msg.type === 'CHAT') {
+                let isMine = msg.sender === currentUser.username;
+                let cls = isMine ? 'mine' : 'theirs';
+                container.innerHTML += `
+                    <div class="message ${cls}">
+                        ${isMine ? '' : `<small style="display:block; font-size:0.7em; opacity:0.7">${msg.sender}</small>`}
+                        ${msg.content}
+                    </div>
+                `;
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // --- Typing Indicator ---
+        function handleTyping() {
+            if (!stompClient || !currentRoom) return;
+            // Send typing event
+            stompClient.send(`/app/chat/${currentRoom}/sendMessage`, {}, JSON.stringify({
+                sender: currentUser.username,
+                type: 'TYPING'
+            }));
+        }
+
+        function showTyping(sender) {
+            if (sender === currentUser.username) return;
+            let el = document.getElementById('typing-indicator');
+            el.innerText = `${sender} is typing...`;
+
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                el.innerText = '';
+            }, 1000); // Hide after 1s of silence
+        }
+
+    </script>
+</body>
+
+</html>

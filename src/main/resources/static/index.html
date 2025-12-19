@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic Chat - Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="login-wrapper">
+        <div class="card animate-fade-in">
+            <h1 style="text-align:center; color: var(--accent-color);">CloudChat</h1>
+            <p style="text-align:center; color: #ccc; margin-bottom: 20px;">Academic Real-time Messaging</p>
+
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('login')">Login</div>
+                <div class="tab" onclick="switchTab('register')">Register</div>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form">
+                <div class="form-group">
+                    <input type="text" id="login-username" placeholder="Username"
+                        onkeypress="handleEnter(event, login)">
+                </div>
+                <div class="form-group">
+                    <input type="password" id="login-password" placeholder="Password"
+                        onkeypress="handleEnter(event, login)">
+                </div>
+                <button onclick="login()">Enter Chat</button>
+            </div>
+
+            <!-- Register Form -->
+            <div id="register-form" style="display:none;">
+                <div class="form-group">
+                    <input type="text" id="reg-username" placeholder="Choose Username"
+                        onkeypress="handleEnter(event, register)">
+                </div>
+                <div class="form-group">
+                    <input type="password" id="reg-password" placeholder="Choose Password"
+                        onkeypress="handleEnter(event, register)">
+                </div>
+                <button onclick="register()" class="secondary">Create Account</button>
+            </div>
+
+            <p id="error-msg" style="color: var(--error-color); text-align: center; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'login') {
+                document.getElementById('login-form').style.display = 'block';
+                document.getElementById('register-form').style.display = 'none';
+            } else {
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('register-form').style.display = 'block';
+            }
+            document.getElementById('error-msg').innerText = '';
+        }
+
+        function handleEnter(e, func) {
+            if (e.key === 'Enter') func();
+        }
+
+        async function login() {
+            let u = document.getElementById('login-username').value;
+            let p = document.getElementById('login-password').value;
+            if (!u || !p) return showError("Please fill all fields");
+
+            try {
+                let res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                if (res.ok) {
+                    let user = await res.json();
+                    handleRedirect(user);
+                } else {
+                    showError("Invalid Credentials");
+                }
+            } catch (e) {
+                showError("Connection Error");
+            }
+        }
+
+        async function register() {
+            let u = document.getElementById('reg-username').value;
+            let p = document.getElementById('reg-password').value;
+            if (!u || !p) return showError("Please fill all fields");
+
+            try {
+                let res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                if (res.ok) {
+                    let user = await res.json();
+                    handleRedirect(user);
+                } else {
+                    let txt = await res.text();
+                    showError(txt);
+                }
+            } catch (e) {
+                showError("Registration Failed");
+            }
+        }
+
+        function handleRedirect(user) {
+            sessionStorage.setItem('username', user.username); // Fallback for simple usage
+            sessionStorage.setItem('role', user.role);
+
+            if (user.role === 'ADMIN') window.location.href = 'admin_dashboard.html';
+            else window.location.href = 'user_dashboard.html';
+        }
+
+        function showError(msg) {
+            document.getElementById('error-msg').innerText = msg;
+        }
+
+        // Auto-check session
+        window.onload = async () => {
+            let res = await fetch('/api/auth/check');
+            if (res.ok) {
+                let user = await res.json();
+                handleRedirect(user);
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,289 @@
+:root {
+    --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    --text-color: #ffffff;
+    --accent-color: #4facfe;
+    --accent-hover: #00f2fe;
+    --error-color: #ff4b2b;
+    --success-color: #00b09b;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    /* Full height */
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Glassmorphism Container */
+.container,
+.card,
+.dashboard-grid,
+.modal-content {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    padding: 2rem;
+    color: white;
+}
+
+/* Typography */
+h1,
+h2,
+h3 {
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-size: 1rem;
+    outline: none;
+    transition: 0.3s;
+}
+
+input:focus {
+    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(to right, var(--accent-color), var(--accent-hover));
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 10px;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+button.secondary {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+}
+
+button.danger {
+    background: linear-gradient(to right, #ff416c, #ff4b2b);
+}
+
+/* Dashboard Layout */
+.app-container {
+    width: 90%;
+    max-width: 1200px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+    /* For inner scrolling */
+    padding: 0;
+    /* Remove default padding for grid container, distinct from cards */
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Sidebar */
+.sidebar {
+    background: var(--glass-bg);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* Main Content */
+.main-content {
+    background: var(--glass-bg);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    /* Ensure content doesn't spill out */
+}
+
+/* Chat Styles */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 12px;
+    position: relative;
+    font-size: 0.95rem;
+}
+
+.message.mine {
+    align-self: flex-end;
+    background: linear-gradient(to right, #00b09b, #96c93d);
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.message.theirs {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.15);
+    border-bottom-left-radius: 2px;
+}
+
+.message.join {
+    align-self: center;
+    background: transparent;
+    color: #aaa;
+    font-size: 0.8rem;
+    max-width: 100%;
+}
+
+.message-input-area {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+    /* Prevent being pushed out */
+}
+
+.message-input-area input {
+    margin: 0;
+    flex: 1;
+}
+
+.message-input-area button {
+    width: auto;
+    margin: 0;
+    padding: 0 20px;
+}
+
+/* Room List */
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.room-item:last-child {
+    border-bottom: none;
+}
+
+.room-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.room-actions button {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+/* Login Page Specific */
+.login-wrapper {
+    width: 100%;
+    max-width: 400px;
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: 0.3s;
+}
+
+.tab.active {
+    opacity: 1;
+    border-bottom: 2px solid var(--accent-color);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    font-size: 0.8rem;
+    color: #aaa;
+    padding: 5px;
+    height: 20px;
+}
