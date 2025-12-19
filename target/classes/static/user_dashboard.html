@@ -63,6 +63,18 @@
                     <div id="typing-indicator" class="typing-indicator"></div>
 
                     <div class="message-input-area">
+                        <input type="file" id="image-input" accept="image/*" style="display: none;"
+                            onchange="handleFileUpload(this.files[0], 'IMAGE')">
+                        <input type="file" id="audio-input" accept="audio/*" style="display: none;"
+                            onchange="handleFileUpload(this.files[0], 'AUDIO')">
+
+                        <button onclick="document.getElementById('image-input').click()" class="secondary"
+                            style="margin-right: 5px;" title="Send Image">📷</button>
+                        <button onclick="document.getElementById('audio-input').click()" class="secondary"
+                            style="margin-right: 5px;" title="Upload Audio">📁</button>
+                        <button onclick="startRecording()" class="secondary" style="margin-right: 5px;"
+                            title="Record Audio">🎤</button>
+
                         <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="handleKey(event)"
                             oninput="handleTyping()">
                         <button onclick="sendMessage()">Send</button>
@@ -72,11 +84,47 @@
         </div>
     </div>
 
+    <!-- Audio Recording Modal/Overlay -->
+    <div id="recording-overlay"
+        style="display: none; position: absolute; bottom: 80px; right: 20px; background: #333; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); align-items: center; gap: 10px;">
+        <div id="recording-status" style="color: #ff4444; font-weight: bold; animation: pulse 1s infinite;">●
+            Recording...</div>
+        <div id="recording-timer" style="font-family: monospace;">00:00</div>
+        <div style="display: flex; gap: 5px;">
+            <button onclick="stopRecording(true)"
+                style="background: #00b09b; padding: 5px 10px; font-size: 0.8rem;">Send</button>
+            <button onclick="stopRecording(false)" class="danger"
+                style="padding: 5px 10px; font-size: 0.8rem;">Cancel</button>
+        </div>
+    </div>
+    <style>
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+
     <script>
         let currentUser = null;
         let currentRoom = null;
         let stompClient = null;
         let typingTimeout = null;
+
+        // Audio Recording State
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimerInterval = null;
 
         // --- Init ---
         window.onload = async () => {
@@ -282,8 +330,119 @@
                         ${msg.content}
                     </div>
                 `;
+            } else if (msg.type === 'IMAGE') {
+                let isMine = msg.sender === currentUser.username;
+                let cls = isMine ? 'mine' : 'theirs';
+                container.innerHTML += `
+                    <div class="message ${cls}">
+                        ${isMine ? '' : `<small style="display:block; font-size:0.7em; opacity:0.7">${msg.sender}</small>`}
+                        <img src="${msg.content}" style="max-width: 200px; border-radius: 5px;">
+                    </div>
+                `;
+            } else if (msg.type === 'AUDIO') {
+                let isMine = msg.sender === currentUser.username;
+                let cls = isMine ? 'mine' : 'theirs';
+                container.innerHTML += `
+                    <div class="message ${cls}">
+                        ${isMine ? '' : `<small style="display:block; font-size:0.7em; opacity:0.7">${msg.sender}</small>`}
+                        <audio controls src="${msg.content}"></audio>
+                    </div>
+                `;
             }
             container.scrollTop = container.scrollHeight;
+        }
+
+        async function handleFileUpload(file, type) {
+            if (!file) return;
+
+            let formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                let res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                let data = await res.json();
+
+                if (data.url) {
+                    // Send message with URL
+                    stompClient.send(`/app/chat/${currentRoom}/sendMessage`, {}, JSON.stringify({
+                        sender: currentUser.username,
+                        content: data.url,
+                        type: type
+                    }));
+                } else {
+                    alert("Upload failed: " + (data.error || "Unknown error"));
+                }
+            } catch (e) {
+                console.error("Upload error:", e);
+                alert("Upload failed");
+            }
+        }
+
+        // --- Audio Recording Logic ---
+
+        async function startRecording() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    showRecordingUI();
+                } catch (err) {
+                    console.error("Error accessing microphone:", err);
+                    alert("Could not access microphone. Please allow permissions.");
+                }
+            } else {
+                alert("Audio recording not supported in this browser.");
+            }
+        }
+
+        function stopRecording(send) {
+            if (!mediaRecorder || !isRecording) return;
+
+            mediaRecorder.onstop = () => {
+                if (send) {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    // Create a generic file name
+                    const file = new File([audioBlob], "recording.wav", { type: 'audio/wav' });
+                    handleFileUpload(file, 'AUDIO');
+                }
+
+                // Stop all tracks to release microphone
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                hideRecordingUI();
+            };
+
+            mediaRecorder.stop();
+            isRecording = false;
+        }
+
+        function showRecordingUI() {
+            document.getElementById('recording-overlay').style.display = 'flex';
+            recordingStartTime = Date.now();
+            updateTimer();
+            recordingTimerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function hideRecordingUI() {
+            document.getElementById('recording-overlay').style.display = 'none';
+            clearInterval(recordingTimerInterval);
+        }
+
+        function updateTimer() {
+            const diff = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const mins = Math.floor(diff / 60).toString().padStart(2, '0');
+            const secs = (diff % 60).toString().padStart(2, '0');
+            document.getElementById('recording-timer').innerText = `${mins}:${secs}`;
         }
 
         // --- Typing Indicator ---
