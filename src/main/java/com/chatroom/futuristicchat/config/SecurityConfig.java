@@ -19,7 +19,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll() // Allow EVERYTHING. We handle security manually in Controllers.
                 )
-                .headers(headers -> headers.frameOptions().disable()); // Allow frames if needed
+                .headers(headers -> headers.frameOptions(null).disable()); // Allow frames if needed
 
         return http.build();
     }
