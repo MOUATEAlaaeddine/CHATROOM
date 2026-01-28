@@ -61,4 +61,4 @@ I have prepared specialized documentation for project defense and onboarding:
 *   🎤 **[Presentation Guide](file:///Users/alaamouate/Desktop/CHATROOM/PRESENTATION_GUIDE.md)**: Script and demo flow for the defense.
 
 ---
-*Created with ❤️ for the University Advanced Java Project.*
+*Created with ❤️ By MOUATE ALAA EDDINE.*
